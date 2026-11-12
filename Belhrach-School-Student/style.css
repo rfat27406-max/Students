@@ -1,0 +1,12 @@
+:root{font-family:Tahoma,Arial,sans-serif;color:#eaf2ff;background:#071426}
+*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 15% 10%,#12345a 0,transparent 35%),#071426}
+.panel{width:min(100%,480px);background:#0d2038;border:1px solid #234363;border-radius:22px;padding:30px;box-shadow:0 22px 70px #0008}
+.brand{display:flex;align-items:center;gap:13px;margin-bottom:28px}.mark{width:52px;height:52px;display:grid;place-items:center;border-radius:15px;background:#38a5ff;color:#061629;font-weight:900;font-size:20px}
+h1{font-size:21px;margin:0} .brand p,.muted,footer{color:#9bb2cc} .brand p{margin:5px 0 0;font-size:13px}
+h2{font-size:21px;margin:0 0 8px} .muted{line-height:1.8;font-size:14px}
+form{display:grid;gap:15px;margin-top:22px}label{display:grid;gap:8px;font-size:14px}
+input{width:100%;padding:13px 14px;border-radius:11px;border:1px solid #34516f;background:#08182b;color:white;font:inherit;outline:none}
+input:focus{border-color:#38a5ff;box-shadow:0 0 0 3px #38a5ff22}
+button{border:0;border-radius:11px;padding:14px;background:#1689e8;color:white;font:700 15px Tahoma;cursor:pointer;margin-top:5px}
+button:disabled{opacity:.6;cursor:wait}.secondary{background:#294662}.message{min-height:22px;font-size:14px;line-height:1.7;color:#ffd28a}
+footer{text-align:center;font-size:12px;margin-top:28px} [hidden]{display:none!important}
