@@ -1,30 +1,129 @@
+
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
   <title>Belhrach School | طلب تفعيل حساب</title>
+
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <main class="panel">
-    <div class="brand"><span class="mark">BS</span><div><h1>Belhrach School</h1><p>بوابة التلاميذ</p></div></div>
+
+    <div class="brand">
+      <span class="mark">BS</span>
+      <div>
+        <h1>Belhrach School</h1>
+        <p>بوابة التلاميذ</p>
+      </div>
+    </div>
+
+    <!-- STUDENT REQUEST FORM -->
+
     <section id="formView">
+
       <h2>طلب تفعيل حساب</h2>
-      <p class="muted">أدخل معلوماتك كما هي في المؤسسة، ثم أرسل طلب التفعيل.</p>
+
+      <p class="muted">
+        أدخل معلوماتك كما هي في المؤسسة، ثم أرسل طلب التفعيل.
+      </p>
+
       <form id="requestForm">
-        <label>الاسم<input name="firstName" maxlength="60" autocomplete="given-name" required></label>
-        <label>اللقب<input name="lastName" maxlength="60" autocomplete="family-name" required></label>
-        <label>القسم<input name="className" maxlength="40" placeholder="مثال: 2AS علوم" required></label>
-        <button type="submit" id="submitBtn">إرسال طلب التفعيل</button>
+
+        <label>
+          الاسم
+          <input
+            name="firstName"
+            maxlength="60"
+            autocomplete="given-name"
+            required
+          >
+        </label>
+
+        <label>
+          اللقب
+          <input
+            name="lastName"
+            maxlength="60"
+            autocomplete="family-name"
+            required
+          >
+        </label>
+
+        <label>
+          القسم
+          <input
+            name="className"
+            maxlength="40"
+            placeholder="مثال: 3ع1"
+            required
+          >
+        </label>
+
+        <button type="submit" id="submitBtn">
+          إرسال طلب التفعيل
+        </button>
+
       </form>
+
       <p id="message" class="message" role="status"></p>
+
     </section>
+
+    <!-- STUDENT REQUEST STATUS -->
+
     <section id="statusView" hidden>
-      <h2 id="statusTitle">تم إرسال طلبك</h2><p id="statusText" class="muted">طلبك قيد المراجعة من الإدارة.</p>
-      <p id="statusMessage" class="message"></p>
-      <button id="refreshBtn" class="secondary">تحديث الحالة</button>
+
+      <h2 id="statusTitle">تم إرسال طلبك</h2>
+
+      <p id="statusText" class="muted">
+        طلبك قيد المراجعة من الإدارة.
+      </p>
+
+      <p
+        id="statusMessage"
+        class="message"
+        role="status"
+      ></p>
+
+      <!-- WEBAUTHN DEVICE REGISTRATION -->
+
+      <button
+        type="button"
+        id="registerDeviceBtn"
+        hidden
+      >
+        ربط هذا الجهاز
+      </button>
+
+      <!-- REFRESH STATUS -->
+
+      <button
+        type="button"
+        id="refreshBtn"
+        class="secondary"
+      >
+        تحديث الحالة
+      </button>
+
     </section>
-    <footer>© Belhrach School</footer>
+
+    <footer>
+      © Belhrach School
+    </footer>
+
   </main>
-  <script src="config.js"></script><script src="app.js"></script>
-</body></html>
+
+  <!-- CONFIGURATION -->
+
+  <script src="config.js"></script>
+
+  <!-- APPLICATION -->
+
+  <script type="module" src="app.js"></script>
+
+</body>
+</html>
