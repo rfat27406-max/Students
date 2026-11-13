@@ -1,5 +1,5 @@
 
-const API = (window.APP_CONFIG?.API_BASE || "").replace(/\/$/, "");
+const API = (window.APP_CONFIG?.API_BASE || "").replace(/\/+$/, "");
 
 const $ = (id) => document.getElementById(id);
 
@@ -15,9 +15,7 @@ let webauthnBrowser = null;
 
 async function getWebAuthnBrowser() {
   if (!window.PublicKeyCredential) {
-    throw new Error(
-      "جهازك أو متصفحك لا يدعم التحقق عبر WebAuthn."
-    );
+    throw new Error("جهازك أو متصفحك لا يدعم التحقق عبر WebAuthn.");
   }
 
   if (!webauthnBrowser) {
@@ -27,6 +25,65 @@ async function getWebAuthnBrowser() {
   }
 
   return webauthnBrowser;
+}
+
+// ==========================================
+// API HELPER
+// ==========================================
+
+async function apiRequest(path, options = {}) {
+  if (!API) {
+    throw new Error("رابط السيرفر غير مضبوط في config.js");
+  }
+
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`
+    },
+    cache: "no-store"
+  });
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("استجابة غير صالحة من الخادم.");
+  }
+
+  if (!response.ok) {
+    const error = new Error(
+      data.error || "حدث خطأ أثناء الاتصال بالخادم."
+    );
+
+    error.status = response.status;
+    error.data = data;
+
+    throw error;
+  }
+
+  return data;
+}
+
+// ==========================================
+// MESSAGE HELPERS
+// ==========================================
+
+function showMessage(elementId, message) {
+  const element = $(elementId);
+
+  if (element) {
+    element.textContent = message || "";
+  }
+}
+
+function setButtonLoading(button, loading, loadingText, normalText) {
+  if (!button) return;
+
+  button.disabled = loading;
+  button.textContent = loading ? loadingText : normalText;
 }
 
 // ==========================================
@@ -45,9 +102,7 @@ function showStatus(status, setupAvailable = false) {
 
     approved: [
       "تم قبول طلبك بنجاح",
-      setupAvailable
-        ? "تم إنشاء حسابك بنجاح. يمكنك الآن ربط جهازك لتسجيل الحضور."
-        : "تمت الموافقة على طلبك. حسابك قيد التجهيز."
+      "تم إنشاء حسابك. يمكنك ربط جهازك وتسجيل حضورك."
     ],
 
     rejected: [
@@ -62,6 +117,7 @@ function showStatus(status, setupAvailable = false) {
   $("statusText").textContent = desc;
 
   const registerBtn = $("registerDeviceBtn");
+  const attendancePanel = $("attendancePanel");
 
   if (registerBtn) {
     registerBtn.hidden = !(
@@ -69,38 +125,15 @@ function showStatus(status, setupAvailable = false) {
     );
   }
 
+  if (attendancePanel) {
+    attendancePanel.hidden = status !== "approved";
+  }
+
   requestStatus = status;
-}
 
-// ==========================================
-// API HELPER
-// ==========================================
-
-async function apiRequest(path, options = {}) {
-  const response = await fetch(`${API}${path}`, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      "Authorization": `Bearer ${token}`
-    },
-    cache: "no-store"
-  });
-
-  let data;
-
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error("استجابة غير صالحة من الخادم.");
+  if (status === "approved") {
+    loadTodayAttendance();
   }
-
-  if (!response.ok) {
-    throw new Error(
-      data.error || "حدث خطأ أثناء الاتصال بالخادم."
-    );
-  }
-
-  return data;
 }
 
 // ==========================================
@@ -108,41 +141,35 @@ async function apiRequest(path, options = {}) {
 // ==========================================
 
 async function checkStatus() {
-  if (!token || !API || API.includes("YOUR-WORKER")) {
-    return;
-  }
+  if (!token || !API) return;
 
   const refreshBtn = $("refreshBtn");
 
-  if (refreshBtn) {
-    refreshBtn.disabled = true;
-  }
+  setButtonLoading(
+    refreshBtn,
+    true,
+    "جارٍ التحديث...",
+    "تحديث الحالة"
+  );
 
   try {
     const data = await apiRequest(
       "/api/student/status",
-      {
-        method: "GET"
-      }
+      { method: "GET" }
     );
 
-    if (
-      !["pending", "approved", "rejected"].includes(data.status)
-    ) {
+    if (!["pending", "approved", "rejected"].includes(data.status)) {
       throw new Error("حالة الطلب غير معروفة.");
     }
 
-    showStatus(
-      data.status,
-      data.setupAvailable === true
-    );
+    showStatus(data.status, data.setupAvailable === true);
 
   } catch (error) {
     console.error("Status check error:", error);
 
     if (
-      error.message.includes("غير صالح") ||
-      error.message.includes("غير موجود")
+      error.status === 404 ||
+      error.message.includes("رمز المتابعة غير صالح")
     ) {
       localStorage.removeItem("bs_request_token");
       token = null;
@@ -150,21 +177,24 @@ async function checkStatus() {
       $("statusView").hidden = true;
       $("formView").hidden = false;
 
-      $("message").textContent =
-        "تعذر العثور على طلبك. يرجى إرسال طلب جديد.";
-
-      return;
-    }
-
-    if (requestStatus === null) {
-      $("message").textContent =
-        "تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مجدداً.";
+      showMessage(
+        "message",
+        "تعذر العثور على طلبك. يرجى إرسال طلب جديد."
+      );
+    } else if (requestStatus === null) {
+      showMessage(
+        "message",
+        "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً."
+      );
     }
 
   } finally {
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-    }
+    setButtonLoading(
+      refreshBtn,
+      false,
+      "",
+      "تحديث الحالة"
+    );
   }
 }
 
@@ -175,18 +205,24 @@ async function checkStatus() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  $("message").textContent = "";
+  showMessage("message", "");
 
-  if (!API || API.includes("YOUR-WORKER")) {
-    $("message").textContent =
-      "يرجى ضبط رابط السيرفر داخل config.js أولاً.";
+  if (!API) {
+    showMessage(
+      "message",
+      "يرجى ضبط رابط السيرفر داخل config.js أولاً."
+    );
     return;
   }
 
   const submitBtn = $("submitBtn");
 
-  submitBtn.disabled = true;
-  submitBtn.textContent = "جارٍ إرسال الطلب...";
+  setButtonLoading(
+    submitBtn,
+    true,
+    "جارٍ إرسال الطلب...",
+    "إرسال طلب التفعيل"
+  );
 
   const formData = new FormData(form);
 
@@ -205,16 +241,14 @@ form.addEventListener("submit", async (event) => {
       throw new Error("يرجى ملء جميع الحقول.");
     }
 
-    const response = await fetch(
-      `${API}/api/student/requests`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      }
-    );
+    const response = await fetch(`${API}/api/student/requests`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
 
     const data = await response.json();
 
@@ -236,11 +270,15 @@ form.addEventListener("submit", async (event) => {
 
   } catch (error) {
     console.error("Request error:", error);
-    $("message").textContent = error.message;
+    showMessage("message", error.message);
 
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = "إرسال طلب التفعيل";
+    setButtonLoading(
+      submitBtn,
+      false,
+      "",
+      "إرسال طلب التفعيل"
+    );
   }
 });
 
@@ -250,24 +288,23 @@ form.addEventListener("submit", async (event) => {
 
 async function registerDevice() {
   const registerBtn = $("registerDeviceBtn");
-  const message = $("statusMessage");
 
-  if (!token || !API) {
-    message.textContent = "تعذر العثور على بيانات حسابك.";
+  if (!token) {
+    showMessage("statusMessage", "تعذر العثور على بيانات حسابك.");
     return;
   }
 
-  registerBtn.disabled = true;
-  registerBtn.textContent = "جارٍ تجهيز التحقق...";
+  showMessage("statusMessage", "");
 
-  message.textContent = "";
+  setButtonLoading(
+    registerBtn,
+    true,
+    "جارٍ تجهيز التحقق...",
+    "ربط هذا الجهاز"
+  );
 
   try {
     const { startRegistration } = await getWebAuthnBrowser();
-
-    // STEP 1: GET REGISTRATION OPTIONS
-
-    registerBtn.textContent = "يرجى الانتظار...";
 
     const optionsData = await apiRequest(
       "/api/student/webauthn/register/options",
@@ -284,15 +321,11 @@ async function registerDevice() {
       throw new Error("لم يتم استلام بيانات تسجيل الجهاز.");
     }
 
-    // STEP 2: ASK THE DEVICE TO CREATE A CREDENTIAL
-
     registerBtn.textContent = "تحقق من هويتك على الجهاز...";
 
     const registrationResponse = await startRegistration({
       optionsJSON: optionsData.options
     });
-
-    // STEP 3: VERIFY REGISTRATION ON THE SERVER
 
     registerBtn.textContent = "جارٍ حفظ الجهاز...";
 
@@ -317,30 +350,260 @@ async function registerDevice() {
       );
     }
 
-    message.textContent =
-      "تم ربط جهازك بنجاح! يمكنك الآن متابعة إعداد حسابك.";
+    showMessage(
+      "statusMessage",
+      "تم ربط جهازك بنجاح! يمكنك الآن تسجيل حضورك."
+    );
 
-    registerBtn.textContent = "تم ربط الجهاز بنجاح";
-    registerBtn.disabled = true;
+    registerBtn.hidden = true;
+
+    $("attendancePanel").hidden = false;
+
+    await loadTodayAttendance();
 
   } catch (error) {
     console.error("Device registration error:", error);
 
     if (error.name === "NotAllowedError") {
-      message.textContent =
-        "تم إلغاء عملية التحقق أو انتهت مهلة الانتظار. يمكنك المحاولة مجدداً.";
-
+      showMessage(
+        "statusMessage",
+        "تم إلغاء عملية التحقق أو انتهت مهلة الانتظار. يمكنك المحاولة مجدداً."
+      );
     } else if (error.name === "InvalidStateError") {
-      message.textContent =
-        "قد يكون الجهاز مسجلاً مسبقاً. يرجى التواصل مع الإدارة.";
-
+      showMessage(
+        "statusMessage",
+        "قد يكون الجهاز مسجلاً مسبقاً. يمكنك تجربة تسجيل الحضور."
+      );
     } else {
-      message.textContent =
-        error.message || "حدث خطأ أثناء ربط الجهاز.";
+      showMessage(
+        "statusMessage",
+        error.message || "حدث خطأ أثناء ربط الجهاز."
+      );
     }
 
-    registerBtn.disabled = false;
-    registerBtn.textContent = "ربط هذا الجهاز";
+  } finally {
+    if (!registerBtn.hidden) {
+      setButtonLoading(
+        registerBtn,
+        false,
+        "",
+        "ربط هذا الجهاز"
+      );
+    }
+  }
+}
+
+// ==========================================
+// ATTENDANCE STATUS DISPLAY
+// ==========================================
+
+function displayAttendance(data) {
+  const labels = {
+    present: "حاضر",
+    late: "متأخر",
+    absent: "غائب",
+    not_yet: "لم يحن وقت الغياب",
+    not_open: "لم يبدأ وقت تسجيل الحضور"
+  };
+
+  const statusElement = $("attendanceStatus");
+  const detailsElement = $("attendanceDetails");
+
+  if (!statusElement || !detailsElement) return;
+
+  statusElement.textContent =
+    labels[data.status] || "حالة الحضور غير معروفة";
+
+  if (data.attendance) {
+    const time = data.time || "";
+    const checkInAt = data.attendance.checkInAt;
+
+    let recordedTime = "";
+
+    if (checkInAt) {
+      recordedTime = new Date(checkInAt).toLocaleTimeString(
+        "ar-DZ",
+        {
+          timeZone: data.timezone || "Africa/Algiers",
+          hour: "2-digit",
+          minute: "2-digit"
+        }
+      );
+    }
+
+    detailsElement.textContent = recordedTime
+      ? `وقت تسجيل حضورك: ${recordedTime}`
+      : `تاريخ اليوم: ${data.date || ""}`;
+
+  } else {
+    detailsElement.textContent =
+      `تاريخ اليوم: ${data.date || ""} — الوقت الحالي: ${data.time || ""}`;
+  }
+
+  const attendanceBtn = $("attendanceBtn");
+
+  if (attendanceBtn) {
+    const alreadyRecorded = ["present", "late"].includes(data.status);
+
+    attendanceBtn.hidden = alreadyRecorded;
+    attendanceBtn.disabled = alreadyRecorded;
+    attendanceBtn.textContent = alreadyRecorded
+      ? "تم تسجيل حضورك اليوم"
+      : "تسجيل الحضور";
+  }
+}
+
+// ==========================================
+// LOAD TODAY ATTENDANCE
+// ==========================================
+
+async function loadTodayAttendance() {
+  if (!token || requestStatus !== "approved") return;
+
+  const refreshAttendanceBtn = $("refreshAttendanceBtn");
+
+  if (refreshAttendanceBtn) {
+    refreshAttendanceBtn.disabled = true;
+    refreshAttendanceBtn.textContent = "جارٍ التحديث...";
+  }
+
+  try {
+    const data = await apiRequest(
+      "/api/student/attendance/today",
+      { method: "GET" }
+    );
+
+    displayAttendance(data);
+
+  } catch (error) {
+    console.error("Attendance status error:", error);
+
+    showMessage(
+      "attendanceMessage",
+      error.message || "تعذر تحميل حالة الحضور."
+    );
+
+  } finally {
+    if (refreshAttendanceBtn) {
+      refreshAttendanceBtn.disabled = false;
+      refreshAttendanceBtn.textContent = "تحديث الحضور";
+    }
+  }
+}
+
+// ==========================================
+// RECORD ATTENDANCE WITH WEBAUTHN
+// ==========================================
+
+async function recordAttendance() {
+  const attendanceBtn = $("attendanceBtn");
+
+  if (!token) {
+    showMessage("attendanceMessage", "تعذر العثور على حسابك.");
+    return;
+  }
+
+  showMessage("attendanceMessage", "");
+
+  setButtonLoading(
+    attendanceBtn,
+    true,
+    "جارٍ تجهيز التحقق...",
+    "تسجيل الحضور"
+  );
+
+  try {
+    const { startAuthentication } = await getWebAuthnBrowser();
+
+    // STEP 1: REQUEST AUTHENTICATION OPTIONS
+
+    const optionsData = await apiRequest(
+      "/api/student/webauthn/attendance/options",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+      }
+    );
+
+    if (!optionsData.options || !optionsData.challengeId) {
+      throw new Error("لم يتم استلام بيانات التحقق من الخادم.");
+    }
+
+    // STEP 2: VERIFY THE STUDENT ON THEIR DEVICE
+
+    attendanceBtn.textContent = "تحقق من هويتك على الجهاز...";
+
+    const authenticationResponse = await startAuthentication({
+      optionsJSON: optionsData.options
+    });
+
+    // STEP 3: SEND AUTHENTICATION TO SERVER
+
+    attendanceBtn.textContent = "جارٍ تسجيل حضورك...";
+
+    const result = await apiRequest(
+      "/api/student/webauthn/attendance/verify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          challengeId: optionsData.challengeId,
+          response: authenticationResponse
+        })
+      }
+    );
+
+    if (!result.ok || !result.recorded) {
+      throw new Error("لم يتم تأكيد تسجيل الحضور.");
+    }
+
+    displayAttendance({
+      status: result.attendance.status,
+      date: result.attendance.date,
+      time: result.attendance.time,
+      timezone: result.attendance.timezone,
+      attendance: {
+        checkInAt: Date.now()
+      }
+    });
+
+    showMessage(
+      "attendanceMessage",
+      result.message || "تم تسجيل حضورك بنجاح."
+    );
+
+  } catch (error) {
+    console.error("Attendance error:", error);
+
+    if (error.name === "NotAllowedError") {
+      showMessage(
+        "attendanceMessage",
+        "تم إلغاء التحقق أو انتهت مهلة الانتظار. حاول مجدداً."
+      );
+    } else {
+      showMessage(
+        "attendanceMessage",
+        error.message || "تعذر تسجيل الحضور."
+      );
+    }
+
+    // Refresh status in case the attendance was already recorded.
+    await loadTodayAttendance();
+
+  } finally {
+    if (attendanceBtn && !attendanceBtn.hidden) {
+      setButtonLoading(
+        attendanceBtn,
+        false,
+        "",
+        "تسجيل الحضور"
+      );
+    }
   }
 }
 
@@ -354,6 +617,21 @@ const registerDeviceBtn = $("registerDeviceBtn");
 
 if (registerDeviceBtn) {
   registerDeviceBtn.addEventListener("click", registerDevice);
+}
+
+const attendanceBtn = $("attendanceBtn");
+
+if (attendanceBtn) {
+  attendanceBtn.addEventListener("click", recordAttendance);
+}
+
+const refreshAttendanceBtn = $("refreshAttendanceBtn");
+
+if (refreshAttendanceBtn) {
+  refreshAttendanceBtn.addEventListener(
+    "click",
+    loadTodayAttendance
+  );
 }
 
 // ==========================================
