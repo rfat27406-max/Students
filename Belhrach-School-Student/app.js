@@ -7,6 +7,8 @@ const form = $("requestForm");
 
 let token = localStorage.getItem("bs_request_token");
 let requestStatus = null;
+let deviceRegistered = false;
+let deviceRevoked = false;
 let webauthnBrowser = null;
 
 // ==========================================
@@ -15,7 +17,7 @@ let webauthnBrowser = null;
 
 async function getWebAuthnBrowser() {
   if (!window.PublicKeyCredential) {
-    throw new Error("جهازك أو متصفحك لا يدعم التحقق عبر WebAuthn.");
+    throw new Error("جهازك أو متصفحك لا يدعم WebAuthn.");
   }
 
   if (!webauthnBrowser) {
@@ -90,9 +92,21 @@ function setButtonLoading(button, loading, loadingText, normalText) {
 // STATUS DISPLAY
 // ==========================================
 
-function showStatus(status, setupAvailable = false) {
-  $("formView").hidden = true;
-  $("statusView").hidden = false;
+function showStatus(
+  status,
+  setupAvailable = false,
+  registered = false,
+  revoked = false
+) {
+  const formView = $("formView");
+  const statusView = $("statusView");
+
+  if (formView) formView.hidden = true;
+  if (statusView) statusView.hidden = false;
+
+  requestStatus = status;
+  deviceRegistered = registered;
+  deviceRevoked = revoked;
 
   const states = {
     pending: [
@@ -102,7 +116,7 @@ function showStatus(status, setupAvailable = false) {
 
     approved: [
       "تم قبول طلبك بنجاح",
-      "تم إنشاء حسابك. يمكنك ربط جهازك وتسجيل حضورك."
+      "تم إنشاء حسابك. تحقق من حالة جهازك أدناه."
     ],
 
     rejected: [
@@ -111,28 +125,55 @@ function showStatus(status, setupAvailable = false) {
     ]
   };
 
-  const [title, desc] = states[status] || states.pending;
+  const [title, description] = states[status] || states.pending;
 
-  $("statusTitle").textContent = title;
-  $("statusText").textContent = desc;
+  const titleElement = $("statusTitle");
+  const textElement = $("statusText");
+
+  if (titleElement) titleElement.textContent = title;
+  if (textElement) textElement.textContent = description;
 
   const registerBtn = $("registerDeviceBtn");
   const attendancePanel = $("attendancePanel");
 
+  const canRegister =
+    status === "approved" &&
+    setupAvailable &&
+    !registered &&
+    !revoked;
+
   if (registerBtn) {
-    registerBtn.hidden = !(
-      status === "approved" && setupAvailable
-    );
+    registerBtn.hidden = !canRegister;
   }
 
   if (attendancePanel) {
-    attendancePanel.hidden = status !== "approved";
+    attendancePanel.hidden = !(
+      status === "approved" && registered && !revoked
+    );
   }
 
-  requestStatus = status;
-
   if (status === "approved") {
-    loadTodayAttendance();
+    if (revoked) {
+      showMessage(
+        "statusMessage",
+        "تم إلغاء الجهاز المرتبط بحسابك. يرجى التواصل مع الإدارة لإعادة ربط جهازك."
+      );
+    } else if (registered) {
+      showMessage(
+        "statusMessage",
+        "جهازك مربوط بحسابك ويمكنك تسجيل الحضور."
+      );
+
+      loadTodayAttendance();
+    } else if (setupAvailable) {
+      showMessage(
+        "statusMessage",
+        "حسابك جاهز. اربط جهازك للتمكن من تسجيل الحضور."
+      );
+    }
+  } else {
+    showMessage("statusMessage", "");
+    showMessage("attendanceMessage", "");
   }
 }
 
@@ -162,24 +203,27 @@ async function checkStatus() {
       throw new Error("حالة الطلب غير معروفة.");
     }
 
-    showStatus(data.status, data.setupAvailable === true);
+    showStatus(
+      data.status,
+      data.setupAvailable === true,
+      data.deviceRegistered === true,
+      data.deviceRevoked === true
+    );
 
   } catch (error) {
     console.error("Status check error:", error);
 
-    if (
-      error.status === 404 ||
-      error.message.includes("رمز المتابعة غير صالح")
-    ) {
+    if (error.status === 404 || error.status === 401) {
       localStorage.removeItem("bs_request_token");
       token = null;
+      requestStatus = null;
 
-      $("statusView").hidden = true;
-      $("formView").hidden = false;
+      if ($("statusView")) $("statusView").hidden = true;
+      if ($("formView")) $("formView").hidden = false;
 
       showMessage(
         "message",
-        "تعذر العثور على طلبك. يرجى إرسال طلب جديد."
+        "تعذر العثور على طلبك أو أن رمز المتابعة غير صالح. يرجى إرسال طلب جديد."
       );
     } else if (requestStatus === null) {
       showMessage(
@@ -202,85 +246,92 @@ async function checkStatus() {
 // CREATE STUDENT REQUEST
 // ==========================================
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
+if (form) {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  showMessage("message", "");
+    showMessage("message", "");
 
-  if (!API) {
-    showMessage(
-      "message",
-      "يرجى ضبط رابط السيرفر داخل config.js أولاً."
-    );
-    return;
-  }
-
-  const submitBtn = $("submitBtn");
-
-  setButtonLoading(
-    submitBtn,
-    true,
-    "جارٍ إرسال الطلب...",
-    "إرسال طلب التفعيل"
-  );
-
-  const formData = new FormData(form);
-
-  const payload = {
-    firstName: String(formData.get("firstName") || "").trim(),
-    lastName: String(formData.get("lastName") || "").trim(),
-    className: String(formData.get("className") || "").trim()
-  };
-
-  try {
-    if (
-      !payload.firstName ||
-      !payload.lastName ||
-      !payload.className
-    ) {
-      throw new Error("يرجى ملء جميع الحقول.");
+    if (!API) {
+      showMessage(
+        "message",
+        "يرجى ضبط رابط السيرفر داخل config.js أولاً."
+      );
+      return;
     }
 
-    const response = await fetch(`${API}/api/student/requests`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store"
-    });
+    const submitBtn = $("submitBtn");
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "تعذر إرسال الطلب.");
-    }
-
-    if (!data.token) {
-      throw new Error("لم يستلم الموقع رمز متابعة الطلب.");
-    }
-
-    token = data.token;
-
-    localStorage.setItem("bs_request_token", token);
-
-    showStatus(data.status || "pending");
-
-    form.reset();
-
-  } catch (error) {
-    console.error("Request error:", error);
-    showMessage("message", error.message);
-
-  } finally {
     setButtonLoading(
       submitBtn,
-      false,
-      "",
+      true,
+      "جارٍ إرسال الطلب...",
       "إرسال طلب التفعيل"
     );
-  }
-});
+
+    const formData = new FormData(form);
+
+    const payload = {
+      firstName: String(formData.get("firstName") || "").trim(),
+      lastName: String(formData.get("lastName") || "").trim(),
+      className: String(formData.get("className") || "").trim()
+    };
+
+    try {
+      if (
+        !payload.firstName ||
+        !payload.lastName ||
+        !payload.className
+      ) {
+        throw new Error("يرجى ملء جميع الحقول.");
+      }
+
+      const response = await fetch(`${API}/api/student/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store"
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "تعذر إرسال الطلب.");
+      }
+
+      if (!data.token) {
+        throw new Error("لم يستلم الموقع رمز متابعة الطلب.");
+      }
+
+      token = data.token;
+
+      localStorage.setItem("bs_request_token", token);
+
+      showStatus(
+        data.status || "pending",
+        false,
+        false,
+        false
+      );
+
+      form.reset();
+
+    } catch (error) {
+      console.error("Request error:", error);
+      showMessage("message", error.message);
+
+    } finally {
+      setButtonLoading(
+        submitBtn,
+        false,
+        "",
+        "إرسال طلب التفعيل"
+      );
+    }
+  });
+}
 
 // ==========================================
 // REGISTER STUDENT DEVICE
@@ -291,6 +342,14 @@ async function registerDevice() {
 
   if (!token) {
     showMessage("statusMessage", "تعذر العثور على بيانات حسابك.");
+    return;
+  }
+
+  if (deviceRegistered || deviceRevoked) {
+    showMessage(
+      "statusMessage",
+      "لا يمكن ربط جهاز جديد من هذه الصفحة. يرجى التواصل مع الإدارة."
+    );
     return;
   }
 
@@ -350,14 +409,19 @@ async function registerDevice() {
       );
     }
 
+    deviceRegistered = true;
+    deviceRevoked = false;
+
+    registerBtn.hidden = true;
+
+    if ($("attendancePanel")) {
+      $("attendancePanel").hidden = false;
+    }
+
     showMessage(
       "statusMessage",
       "تم ربط جهازك بنجاح! يمكنك الآن تسجيل حضورك."
     );
-
-    registerBtn.hidden = true;
-
-    $("attendancePanel").hidden = false;
 
     await loadTodayAttendance();
 
@@ -372,7 +436,7 @@ async function registerDevice() {
     } else if (error.name === "InvalidStateError") {
       showMessage(
         "statusMessage",
-        "قد يكون الجهاز مسجلاً مسبقاً. يمكنك تجربة تسجيل الحضور."
+        "قد يكون الجهاز مسجلاً مسبقاً. يرجى تحديث حالة الحساب."
       );
     } else {
       showMessage(
@@ -382,7 +446,7 @@ async function registerDevice() {
     }
 
   } finally {
-    if (!registerBtn.hidden) {
+    if (registerBtn && !deviceRegistered && !deviceRevoked) {
       setButtonLoading(
         registerBtn,
         false,
@@ -415,13 +479,12 @@ function displayAttendance(data) {
     labels[data.status] || "حالة الحضور غير معروفة";
 
   if (data.attendance) {
-    const time = data.time || "";
     const checkInAt = data.attendance.checkInAt;
 
     let recordedTime = "";
 
     if (checkInAt) {
-      recordedTime = new Date(checkInAt).toLocaleTimeString(
+      recordedTime = new Date(Number(checkInAt)).toLocaleTimeString(
         "ar-DZ",
         {
           timeZone: data.timezone || "Africa/Algiers",
@@ -458,13 +521,20 @@ function displayAttendance(data) {
 // ==========================================
 
 async function loadTodayAttendance() {
-  if (!token || requestStatus !== "approved") return;
+  if (
+    !token ||
+    requestStatus !== "approved" ||
+    !deviceRegistered ||
+    deviceRevoked
+  ) {
+    return;
+  }
 
-  const refreshAttendanceBtn = $("refreshAttendanceBtn");
+  const refreshBtn = $("refreshAttendanceBtn");
 
-  if (refreshAttendanceBtn) {
-    refreshAttendanceBtn.disabled = true;
-    refreshAttendanceBtn.textContent = "جارٍ التحديث...";
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = "جارٍ التحديث...";
   }
 
   try {
@@ -474,6 +544,7 @@ async function loadTodayAttendance() {
     );
 
     displayAttendance(data);
+    showMessage("attendanceMessage", "");
 
   } catch (error) {
     console.error("Attendance status error:", error);
@@ -484,9 +555,9 @@ async function loadTodayAttendance() {
     );
 
   } finally {
-    if (refreshAttendanceBtn) {
-      refreshAttendanceBtn.disabled = false;
-      refreshAttendanceBtn.textContent = "تحديث الحضور";
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = "تحديث الحضور";
     }
   }
 }
@@ -498,8 +569,11 @@ async function loadTodayAttendance() {
 async function recordAttendance() {
   const attendanceBtn = $("attendanceBtn");
 
-  if (!token) {
-    showMessage("attendanceMessage", "تعذر العثور على حسابك.");
+  if (!token || !deviceRegistered || deviceRevoked) {
+    showMessage(
+      "attendanceMessage",
+      "يجب ربط جهازك بحسابك أولاً."
+    );
     return;
   }
 
@@ -532,7 +606,7 @@ async function recordAttendance() {
       throw new Error("لم يتم استلام بيانات التحقق من الخادم.");
     }
 
-    // STEP 2: VERIFY THE STUDENT ON THEIR DEVICE
+    // STEP 2: VERIFY STUDENT ON DEVICE
 
     attendanceBtn.textContent = "تحقق من هويتك على الجهاز...";
 
@@ -568,7 +642,7 @@ async function recordAttendance() {
       time: result.attendance.time,
       timezone: result.attendance.timezone,
       attendance: {
-        checkInAt: Date.now()
+        checkInAt: result.attendance.checkInAt
       }
     });
 
@@ -592,7 +666,6 @@ async function recordAttendance() {
       );
     }
 
-    // Refresh status in case the attendance was already recorded.
     await loadTodayAttendance();
 
   } finally {
@@ -611,7 +684,11 @@ async function recordAttendance() {
 // BUTTON EVENTS
 // ==========================================
 
-$("refreshBtn").addEventListener("click", checkStatus);
+const refreshBtn = $("refreshBtn");
+
+if (refreshBtn) {
+  refreshBtn.addEventListener("click", checkStatus);
+}
 
 const registerDeviceBtn = $("registerDeviceBtn");
 
@@ -639,6 +716,9 @@ if (refreshAttendanceBtn) {
 // ==========================================
 
 if (token) {
-  showStatus("pending");
+  showStatus("pending", false, false, false);
   checkStatus();
+} else {
+  if ($("formView")) $("formView").hidden = false;
+  if ($("statusView")) $("statusView").hidden = true;
 }
