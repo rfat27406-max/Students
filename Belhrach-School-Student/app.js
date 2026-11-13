@@ -7,6 +7,27 @@ const form = $("requestForm");
 
 let token = localStorage.getItem("bs_request_token");
 let requestStatus = null;
+let webauthnBrowser = null;
+
+// ==========================================
+// WEBAUTHN LIBRARY
+// ==========================================
+
+async function getWebAuthnBrowser() {
+  if (!window.PublicKeyCredential) {
+    throw new Error(
+      "جهازك أو متصفحك لا يدعم التحقق عبر WebAuthn."
+    );
+  }
+
+  if (!webauthnBrowser) {
+    webauthnBrowser = await import(
+      "https://esm.sh/@simplewebauthn/browser@13"
+    );
+  }
+
+  return webauthnBrowser;
+}
 
 // ==========================================
 // STATUS DISPLAY
@@ -25,7 +46,7 @@ function showStatus(status, setupAvailable = false) {
     approved: [
       "تم قبول طلبك بنجاح",
       setupAvailable
-        ? "تم إنشاء حسابك بنجاح. ستتمكن من ربط جهازك والتحقق البيومتري عند إتاحة مرحلة إعداد الحساب."
+        ? "تم إنشاء حسابك بنجاح. يمكنك الآن ربط جهازك لتسجيل الحضور."
         : "تمت الموافقة على طلبك. حسابك قيد التجهيز."
     ],
 
@@ -40,7 +61,46 @@ function showStatus(status, setupAvailable = false) {
   $("statusTitle").textContent = title;
   $("statusText").textContent = desc;
 
+  const registerBtn = $("registerDeviceBtn");
+
+  if (registerBtn) {
+    registerBtn.hidden = !(
+      status === "approved" && setupAvailable
+    );
+  }
+
   requestStatus = status;
+}
+
+// ==========================================
+// API HELPER
+// ==========================================
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      "Authorization": `Bearer ${token}`
+    },
+    cache: "no-store"
+  });
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("استجابة غير صالحة من الخادم.");
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.error || "حدث خطأ أثناء الاتصال بالخادم."
+    );
+  }
+
+  return data;
 }
 
 // ==========================================
@@ -59,46 +119,42 @@ async function checkStatus() {
   }
 
   try {
-    const response = await fetch(
-      `${API}/api/student/status`,
+    const data = await apiRequest(
+      "/api/student/status",
       {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        },
-        cache: "no-store"
+        method: "GET"
       }
     );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 404 || response.status === 401) {
-        localStorage.removeItem("bs_request_token");
-        token = null;
-
-        $("statusView").hidden = true;
-        $("formView").hidden = false;
-
-        $("message").textContent =
-          "تعذر العثور على طلبك. يرجى إرسال طلب جديد.";
-
-        return;
-      }
-
-      throw new Error(data.error || "تعذر التحقق من حالة الطلب");
-    }
 
     if (
       !["pending", "approved", "rejected"].includes(data.status)
     ) {
-      throw new Error("حالة الطلب غير معروفة");
+      throw new Error("حالة الطلب غير معروفة.");
     }
 
-    showStatus(data.status, data.setupAvailable === true);
+    showStatus(
+      data.status,
+      data.setupAvailable === true
+    );
 
   } catch (error) {
     console.error("Status check error:", error);
+
+    if (
+      error.message.includes("غير صالح") ||
+      error.message.includes("غير موجود")
+    ) {
+      localStorage.removeItem("bs_request_token");
+      token = null;
+
+      $("statusView").hidden = true;
+      $("formView").hidden = false;
+
+      $("message").textContent =
+        "تعذر العثور على طلبك. يرجى إرسال طلب جديد.";
+
+      return;
+    }
 
     if (requestStatus === null) {
       $("message").textContent =
@@ -189,10 +245,116 @@ form.addEventListener("submit", async (event) => {
 });
 
 // ==========================================
-// REFRESH BUTTON
+// REGISTER STUDENT DEVICE
+// ==========================================
+
+async function registerDevice() {
+  const registerBtn = $("registerDeviceBtn");
+  const message = $("statusMessage");
+
+  if (!token || !API) {
+    message.textContent = "تعذر العثور على بيانات حسابك.";
+    return;
+  }
+
+  registerBtn.disabled = true;
+  registerBtn.textContent = "جارٍ تجهيز التحقق...";
+
+  message.textContent = "";
+
+  try {
+    const { startRegistration } = await getWebAuthnBrowser();
+
+    // STEP 1: GET REGISTRATION OPTIONS
+
+    registerBtn.textContent = "يرجى الانتظار...";
+
+    const optionsData = await apiRequest(
+      "/api/student/webauthn/register/options",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+      }
+    );
+
+    if (!optionsData.options || !optionsData.challengeId) {
+      throw new Error("لم يتم استلام بيانات تسجيل الجهاز.");
+    }
+
+    // STEP 2: ASK THE DEVICE TO CREATE A CREDENTIAL
+
+    registerBtn.textContent = "تحقق من هويتك على الجهاز...";
+
+    const registrationResponse = await startRegistration({
+      optionsJSON: optionsData.options
+    });
+
+    // STEP 3: VERIFY REGISTRATION ON THE SERVER
+
+    registerBtn.textContent = "جارٍ حفظ الجهاز...";
+
+    const result = await apiRequest(
+      "/api/student/webauthn/register/verify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          challengeId: optionsData.challengeId,
+          response: registrationResponse,
+          deviceName: navigator.userAgent.slice(0, 100)
+        })
+      }
+    );
+
+    if (!result.ok || !result.registered) {
+      throw new Error(
+        result.message || "لم يكتمل تسجيل الجهاز."
+      );
+    }
+
+    message.textContent =
+      "تم ربط جهازك بنجاح! يمكنك الآن متابعة إعداد حسابك.";
+
+    registerBtn.textContent = "تم ربط الجهاز بنجاح";
+    registerBtn.disabled = true;
+
+  } catch (error) {
+    console.error("Device registration error:", error);
+
+    if (error.name === "NotAllowedError") {
+      message.textContent =
+        "تم إلغاء عملية التحقق أو انتهت مهلة الانتظار. يمكنك المحاولة مجدداً.";
+
+    } else if (error.name === "InvalidStateError") {
+      message.textContent =
+        "قد يكون الجهاز مسجلاً مسبقاً. يرجى التواصل مع الإدارة.";
+
+    } else {
+      message.textContent =
+        error.message || "حدث خطأ أثناء ربط الجهاز.";
+    }
+
+    registerBtn.disabled = false;
+    registerBtn.textContent = "ربط هذا الجهاز";
+  }
+}
+
+// ==========================================
+// BUTTON EVENTS
 // ==========================================
 
 $("refreshBtn").addEventListener("click", checkStatus);
+
+const registerDeviceBtn = $("registerDeviceBtn");
+
+if (registerDeviceBtn) {
+  registerDeviceBtn.addEventListener("click", registerDevice);
+}
 
 // ==========================================
 // INITIALIZATION
