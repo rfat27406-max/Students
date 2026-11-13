@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <title>Belhrach School | طلب تفعيل حساب</title>
+  <title>Belhrach School | بوابة التلاميذ</title>
 
   <link rel="stylesheet" href="style.css">
 </head>
@@ -73,7 +73,7 @@
 
     </section>
 
-    <!-- STUDENT REQUEST STATUS -->
+    <!-- STUDENT STATUS -->
 
     <section id="statusView" hidden>
 
@@ -83,13 +83,9 @@
         طلبك قيد المراجعة من الإدارة.
       </p>
 
-      <p
-        id="statusMessage"
-        class="message"
-        role="status"
-      ></p>
+      <p id="statusMessage" class="message" role="status"></p>
 
-      <!-- WEBAUTHN DEVICE REGISTRATION -->
+      <!-- DEVICE REGISTRATION -->
 
       <button
         type="button"
@@ -99,7 +95,52 @@
         ربط هذا الجهاز
       </button>
 
-      <!-- REFRESH STATUS -->
+      <!-- ATTENDANCE PANEL -->
+
+      <section id="attendancePanel" hidden>
+
+        <hr>
+
+        <h2>الحضور اليومي</h2>
+
+        <p class="muted">
+          تحقق من هويتك باستخدام الجهاز المرتبط بحسابك لتسجيل حضورك.
+        </p>
+
+        <p>
+          حالة اليوم:
+          <strong id="attendanceStatus">جارٍ تحميل الحالة...</strong>
+        </p>
+
+        <p
+          id="attendanceDetails"
+          class="muted"
+        ></p>
+
+        <button
+          type="button"
+          id="attendanceBtn"
+        >
+          تسجيل الحضور
+        </button>
+
+        <button
+          type="button"
+          id="refreshAttendanceBtn"
+          class="secondary"
+        >
+          تحديث الحضور
+        </button>
+
+        <p
+          id="attendanceMessage"
+          class="message"
+          role="status"
+        ></p>
+
+      </section>
+
+      <!-- REFRESH REQUEST STATUS -->
 
       <button
         type="button"
@@ -117,12 +158,7 @@
 
   </main>
 
-  <!-- CONFIGURATION -->
-
   <script src="config.js"></script>
-
-  <!-- APPLICATION -->
-
   <script type="module" src="app.js"></script>
 
 </body>
