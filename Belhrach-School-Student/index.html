@@ -1,9 +1,17 @@
 
 <!doctype html>
 <html lang="ar" dir="rtl">
+
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta
+    name="description"
+    content="بوابة التلاميذ - Belhrach School"
+  >
+
+  <meta name="theme-color" content="#081b33">
 
   <title>Belhrach School | بوابة التلاميذ</title>
 
@@ -11,15 +19,21 @@
 </head>
 
 <body>
+
   <main class="panel">
 
-    <div class="brand">
+    <!-- BRAND -->
+
+    <header class="brand">
+
       <span class="mark">BS</span>
+
       <div>
         <h1>Belhrach School</h1>
         <p>بوابة التلاميذ</p>
       </div>
-    </div>
+
+    </header>
 
     <!-- STUDENT REQUEST FORM -->
 
@@ -33,43 +47,60 @@
 
       <form id="requestForm">
 
-        <label>
+        <label for="firstName">
           الاسم
+
           <input
+            id="firstName"
             name="firstName"
+            type="text"
             maxlength="60"
             autocomplete="given-name"
             required
           >
         </label>
 
-        <label>
+        <label for="lastName">
           اللقب
+
           <input
+            id="lastName"
             name="lastName"
+            type="text"
             maxlength="60"
             autocomplete="family-name"
             required
           >
         </label>
 
-        <label>
+        <label for="className">
           القسم
+
           <input
+            id="className"
             name="className"
+            type="text"
             maxlength="40"
             placeholder="مثال: 3ع1"
             required
           >
         </label>
 
-        <button type="submit" id="submitBtn">
+        <button
+          type="submit"
+          id="submitBtn"
+        >
           إرسال طلب التفعيل
         </button>
 
       </form>
 
-      <p id="message" class="message" role="status"></p>
+      <p
+        id="message"
+        class="message"
+        role="status"
+        aria-live="polite"
+      ></p>
 
     </section>
 
@@ -77,27 +108,45 @@
 
     <section id="statusView" hidden>
 
-      <h2 id="statusTitle">تم إرسال طلبك</h2>
+      <h2 id="statusTitle">
+        تم إرسال طلبك
+      </h2>
 
-      <p id="statusText" class="muted">
+      <p
+        id="statusText"
+        class="muted"
+      >
         طلبك قيد المراجعة من الإدارة.
       </p>
 
-      <p id="statusMessage" class="message" role="status"></p>
+      <p
+        id="statusMessage"
+        class="message"
+        role="status"
+        aria-live="polite"
+      ></p>
 
       <!-- DEVICE REGISTRATION -->
 
-      <button
-        type="button"
-        id="registerDeviceBtn"
-        hidden
-      >
-        ربط هذا الجهاز
-      </button>
+      <section aria-label="ربط الجهاز">
+
+        <button
+          type="button"
+          id="registerDeviceBtn"
+          hidden
+        >
+          ربط هذا الجهاز
+        </button>
+
+      </section>
 
       <!-- ATTENDANCE PANEL -->
 
-      <section id="attendancePanel" hidden>
+      <section
+        id="attendancePanel"
+        hidden
+        aria-label="الحضور اليومي"
+      >
 
         <hr>
 
@@ -109,7 +158,12 @@
 
         <p>
           حالة اليوم:
-          <strong id="attendanceStatus">جارٍ تحميل الحالة...</strong>
+          <strong
+            id="attendanceStatus"
+            aria-live="polite"
+          >
+            جارٍ تحميل الحالة...
+          </strong>
         </p>
 
         <p
@@ -136,6 +190,7 @@
           id="attendanceMessage"
           class="message"
           role="status"
+          aria-live="polite"
         ></p>
 
       </section>
@@ -152,14 +207,22 @@
 
     </section>
 
+    <!-- FOOTER -->
+
     <footer>
       © Belhrach School
     </footer>
 
   </main>
 
+  <!-- CONFIGURATION -->
+
   <script src="config.js"></script>
+
+  <!-- APPLICATION -->
+
   <script type="module" src="app.js"></script>
 
 </body>
+
 </html>
