@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="بوابة التلاميذ - Belhrach School">
+  <meta name="theme-color" content="#071d43">
+  <title>Belhrach School | بوابة التلاميذ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-glow page-glow-one"></div>
+  <div class="page-glow page-glow-two"></div>
+
+  <main class="app-shell">
+    <aside class="brand-panel">
+      <div class="brand-topline">
+        <span class="brand-dot"></span>
+        <span>بوابة المؤسسة الرسمية</span>
+      </div>
+
+      <div class="logo-wrap">
+        <img src="logo.png" alt="شعار Belhrach School" class="school-logo">
+      </div>
+
+      <div class="brand-copy">
+        <span class="eyebrow">BELHRACH SCHOOL</span>
+        <h1>بوابتك نحو<br><em>مستقبل أفضل</em></h1>
+        <p>فضاؤك الرقمي لمتابعة طلب التفعيل وربط جهازك وتسجيل حضورك بكل سهولة وأمان.</p>
+      </div>
+
+      <div class="brand-features">
+        <div class="feature">
+          <span class="feature-icon">01</span>
+          <span><b>حسابك المدرسي</b><small>طلب التفعيل ومتابعة حالته</small></span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">02</span>
+          <span><b>حماية موثوقة</b><small>التحقق الآمن من جهازك</small></span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">03</span>
+          <span><b>الحضور اليومي</b><small>تسجيل ومتابعة حضورك</small></span>
+        </div>
+      </div>
+
+      <div class="brand-bottom">
+        <span class="gold-line"></span>
+        <span>LEARN&nbsp; • &nbsp;ATTEND&nbsp; • &nbsp;SUCCEED</span>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="workspace-header">
+        <div class="mobile-logo"><img src="logo.png" alt="Belhrach School"></div>
+        <div>
+          <span class="section-kicker">STUDENT PORTAL</span>
+          <h2>مرحباً بك في فضائك المدرسي</h2>
+          <p>أكمل الخطوات التالية للاستفادة من خدمات البوابة.</p>
+        </div>
+        <div class="secure-pill"><span></span> اتصال آمن</div>
+      </header>
+
+      <div class="content-card">
+        <section id="formView">
+          <div class="step-heading">
+            <div class="step-number">01</div>
+            <div>
+              <span class="section-kicker">ACCOUNT ACTIVATION</span>
+              <h2>طلب تفعيل حساب</h2>
+              <p class="muted">أدخل معلوماتك كما هي مسجلة في المؤسسة، ثم أرسل طلب التفعيل.</p>
+            </div>
+          </div>
+
+          <div class="notice">
+            <span class="notice-icon">i</span>
+            <span>تأكد من صحة الاسم واللقب والقسم قبل إرسال الطلب.</span>
+          </div>
+
+          <form id="requestForm">
+            <div class="form-grid">
+              <label for="firstName">
+                <span>الاسم</span>
+                <input id="firstName" name="firstName" type="text" maxlength="60" autocomplete="given-name" placeholder="أدخل اسمك" required>
+              </label>
+              <label for="lastName">
+                <span>اللقب</span>
+                <input id="lastName" name="lastName" type="text" maxlength="60" autocomplete="family-name" placeholder="أدخل لقبك" required>
+              </label>
+              <label for="className" class="full-field">
+                <span>القسم</span>
+                <input id="className" name="className" type="text" maxlength="40" placeholder="مثال: 3ع1" required>
+              </label>
+            </div>
+
+            <button type="submit" id="submitBtn" class="primary-btn">
+              <span>إرسال طلب التفعيل</span><span class="btn-arrow">←</span>
+            </button>
+          </form>
+
+          <p id="message" class="message" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="statusView" hidden>
+          <div class="step-heading">
+            <div class="step-number">02</div>
+            <div>
+              <span class="section-kicker">REQUEST STATUS</span>
+              <h2 id="statusTitle">تم إرسال طلبك</h2>
+              <p id="statusText" class="muted">طلبك قيد المراجعة من الإدارة.</p>
+            </div>
+          </div>
+
+          <div class="status-track" aria-hidden="true">
+            <span class="track-node active"></span><span class="track-line"></span><span class="track-node"></span><span class="track-line"></span><span class="track-node"></span>
+          </div>
+
+          <p id="statusMessage" class="message" role="status" aria-live="polite"></p>
+
+          <section class="device-card" aria-label="ربط الجهاز">
+            <div class="mini-icon">⌁</div>
+            <div class="device-copy">
+              <h3>ربط جهازك الشخصي</h3>
+              <p>اربط هذا الجهاز بحسابك لإتمام التحقق وتسجيل الحضور بأمان.</p>
+            </div>
+            <button type="button" id="registerDeviceBtn" class="primary-btn compact-btn" hidden>ربط هذا الجهاز</button>
+          </section>
+
+          <section id="attendancePanel" class="attendance-card" hidden aria-label="الحضور اليومي">
+            <div class="attendance-head">
+              <div>
+                <span class="section-kicker">DAILY ATTENDANCE</span>
+                <h2>الحضور اليومي</h2>
+                <p class="muted">تحقق من هويتك باستخدام الجهاز المرتبط بحسابك لتسجيل حضورك.</p>
+              </div>
+              <div class="attendance-symbol">✓</div>
+            </div>
+
+            <div class="attendance-status-box">
+              <span class="status-label">حالة اليوم</span>
+              <strong id="attendanceStatus" aria-live="polite">جارٍ تحميل الحالة...</strong>
+              <p id="attendanceDetails" class="muted"></p>
+            </div>
+
+            <button type="button" id="attendanceBtn" class="primary-btn">
+              <span>تسجيل الحضور</span><span class="btn-arrow">←</span>
+            </button>
+            <button type="button" id="refreshAttendanceBtn" class="text-btn">↻ تحديث الحضور</button>
+            <p id="attendanceMessage" class="message" role="status" aria-live="polite"></p>
+          </section>
+
+          <button type="button" id="refreshBtn" class="secondary-btn">↻ تحديث الحالة</button>
+        </section>
+      </div>
+
+      <footer class="page-footer">
+        <span>© Belhrach School</span>
+        <span class="footer-credit"><i></i> FMA-Group-Prouduction</span>
+      </footer>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
